@@ -32,7 +32,7 @@
 
         h1 {
             font-size: 2.5rem;
-            font-weight:700;
+            font-weight: 700;
             background: linear-gradient(45deg, #00d4ff, #00ff88);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -63,45 +63,72 @@
             transition: all 0.3s ease;
             cursor: pointer;
             background: rgba(0, 212, 255, 0.05);
+            position: relative;
+            overflow: hidden;
         }
 
         .upload-area:hover {
             border-color: #00ff88;
             background: rgba(0, 255, 136, 0.05);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 212, 255, 0.2);
         }
 
         .upload-area.dragover {
             border-color: #00ff88;
             background: rgba(0, 255, 136, 0.1);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(0, 255, 136, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 136, 0); }
         }
 
         .upload-icon {
             font-size: 3rem;
             margin-bottom: 1rem;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
         }
 
         .btn {
             display: inline-block;
-            padding: 0.8rem 2rem;
+            padding: 0.9rem 2rem;
             background: linear-gradient(45deg, #00d4ff, #00ff88);
             color: #000;
             font-weight: 600;
             text-decoration: none;
-            border-radius: 8px;
+            border-radius: 12px;
             transition: all 0.3s ease;
             cursor: pointer;
             border: none;
             font-size: 1rem;
+            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
         }
 
         .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0, 212, 255, 0.4);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 212, 255, 0.5);
+            background: linear-gradient(45deg, #00b8d4, #00e688);
+        }
+
+        .btn-download {
+            background: linear-gradient(45deg, #00c853, #69f0ae);
+            color: #000;
+            box-shadow: 0 4px 15px rgba(0, 200, 83, 0.3);
+        }
+
+        .btn-download:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 200, 83, 0.5);
+            background: linear-gradient(45deg, #00b84d, #52c41a);
         }
 
         .btn-secondary {
             background: rgba(255, 255, 255, 0.1);
             color: #fff;
+            margin-left: 1rem;
         }
 
         .btn-secondary:hover {
@@ -140,10 +167,15 @@
             padding: 1rem;
             border-radius: 8px;
             text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .feature:hover {
+            transform: translateY(-5px);
         }
 
         .feature-icon {
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             margin-bottom: 0.5rem;
         }
 
@@ -153,7 +185,61 @@
             color: #00ff88;
         }
 
-        .hidden {
+        .file-preview {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .file-preview img {
+            max-width: 200px;
+            max-height: 150px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            margin-bottom: 0.5rem;
+        }
+
+        .file-name {
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        .actions {
+            margin-top: 1.5rem;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .progress-container {
+            margin-top: 1.5rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 0.5rem 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #00d4ff, #00ff88);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .loading {
             display: none;
         }
 
@@ -162,6 +248,17 @@
             padding: 2rem;
             color: #666;
             font-size: 0.9rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            background: linear-gradient(45deg, #00d4ff, #00ff88);
+            color: #000;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
         }
     </style>
 </head>
@@ -173,68 +270,56 @@
         </header>
 
         <main>
-            {% if error %}
-            <div class="error">{{ error }}</div>
-            {% endif %}
-
-            {% if success %}
             <div class="card">
-                <h2 style="color: #00ff88; margin-bottom: 1.5rem;">✅ ¡Procesado con éxito!</h2>
-                
-                <div style="display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center; margin-bottom: 1.5rem;">
-                    <div style="text-align: center;">
-                        <h4 style="color: #888; margin-bottom: 0.5rem;">Original</h4>
-                        <img src="{{ url_for('uploaded_file', filename=original) }}" 
-                             style="max-width: 250px; border-radius: 8px; border: 1px solid #333;">
-                    </div>
-                    <div style="text-align: center;">
-                        <h4 style="color: #888; margin-bottom: 0.5rem;">Limpio</h4>
-                        <img src="{{ url_for('result_file', filename=cleaned) }}" 
-                             style="max-width: 250px; border-radius: 8px; border: 1px solid #333;">
+                <div class="upload-area" id="dropArea" onclick="document.getElementById('fileInput').click()">
+                    <div class="upload-icon">📤</div>
+                    <h3 style="margin-bottom: 0.5rem;">Arrastra o sube tu imagen</h3>
+                    <p style="color: #888; font-size: 0.9rem;">PNG, JPG, JPEG, GIF, WEBP (máx. 16MB)</p>
+                    <input type="file" id="fileInput" name="file" accept="image/*" style="display: none;">
+                </div>
+
+                <div id="filePreview" class="file-preview hidden">
+                    <img id="previewImg" src="" alt="Preview">
+                    <div class="file-name" id="fileName"></div>
+                </div>
+
+                <div class="info">
+                    <strong>¿Cómo funciona?</strong><br>
+                    Nuestro algoritmo detecta automáticamente los globos de texto y los limpia 
+                    manteniendo el estilo original de la página.
+                </div>
+
+                <div class="actions">
+                    <button id="processBtn" class="btn" onclick="processImage()">
+                        ✨ Limpiar imagen
+                    </button>
+                    <button class="btn btn-secondary" onclick="window.location.href='{{ url_for('index') }}'">
+                        🔄 Nueva imagen
+                    </button>
+                </div>
+
+                <div id="progressContainer" class="progress-container loading">
+                    <p>Procesando...</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
                     </div>
                 </div>
-                
-                <a href="{{ url_for('result_file', filename=cleaned) }}" class="btn" download>
-                    📥 Descargar imagen limpiada
-                </a>
+
+                <div class="features">
+                    <div class="feature">
+                        <div class="feature-icon">🔍</div>
+                        <div class="feature-title">Detección automática</div>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon">🎯</div>
+                        <div class="feature-title">Limpieza precisa</div>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon">📱</div>
+                        <div class="feature-title">Compatible móvil</div>
+                    </div>
+                </div>
             </div>
-            {% else %}
-            <form id="uploadForm" enctype="multipart/form-data">
-                <div class="card">
-                    <div class="upload-area" id="dropArea" onclick="document.getElementById('fileInput').click()">
-                        <div class="upload-icon">📤</div>
-                        <h3 style="margin-bottom: 0.5rem;">Arrastra o sube tu imagen</h3>
-                        <p style="color: #888; font-size: 0.9rem;">PNG, JPG, JPEG, GIF, WEBP (máx. 16MB)</p>
-                        <input type="file" id="fileInput" name="file" accept="image/*" style="display: none;">
-                    </div>
-
-                    <div class="info">
-                        <strong>¿Cómo funciona?</strong><br>
-                        Nuestro algoritmo detecta automáticamente los globos de texto y los limpia 
-                        manteniendo el estilo original de la página.
-                    </div>
-
-                    <a href="#" class="btn" onclick="document.getElementById('uploadForm').submit(); return false;">
-                        Subir imagen
-                    </a>
-
-                    <div class="features">
-                        <div class="feature">
-                            <div class="feature-icon">🔍</div>
-                            <div class="feature-title">Detección automática</div>
-                        </div>
-                        <div class="feature">
-                            <div class="feature-icon">🎯</div>
-                            <div class="feature-title">Limpieza precisa</div>
-                        </div>
-                        <div class="feature">
-                            <div class="feature-icon">📱</div>
-                            <div class="feature-title">Compatible móvil</div>
-                        </div>
-                    </div>
-                </div>
-            </form>
-            {% endif %}
         </main>
 
         <footer>
@@ -245,6 +330,21 @@
     <script>
         const dropArea = document.getElementById('dropArea');
         const fileInput = document.getElementById('fileInput');
+        const filePreview = document.getElementById('filePreview');
+        const previewImg = document.getElementById('previewImg');
+        const fileName = document.getElementById('fileName');
+        const processBtn = document.getElementById('processBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        
+        let selectedFile = null;
+
+        // Manejar selección de archivo
+        fileInput.addEventListener('change', function(e) {
+            if (this.files && this.files[0]) {
+                handleFile(this.files[0]);
+            }
+        });
 
         // Manejar arrastrar y soltar
         dropArea.addEventListener('dragover', (e) => {
@@ -261,11 +361,55 @@
             e.preventDefault();
             dropArea.classList.remove('dragover');
             
-            if (e.dataTransfer.files.length > 0) {
-                fileInput.files = e.dataTransfer.files;
-                document.getElementById('uploadForm').submit();
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleFile(e.dataTransfer.files[0]);
             }
         });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Por favor selecciona un archivo de imagen');
+                return;
+            }
+            
+            selectedFile = file;
+            fileName.textContent = file.name;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewImg.src = e.target.result;
+                filePreview.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function processImage() {
+            if (!selectedFile) {
+                alert('Por favor selecciona una imagen primero');
+                return;
+            }
+            
+            // Mostrar progreso
+            progressContainer.classList.remove('loading');
+            progressFill.style.width = '30%';
+            
+            // Crear FormData y enviar
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form enctype = 'multipart/form-data';
+            
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.name = 'file';
+            input.files = [selectedFile];
+            form.appendChild(input);
+            
+            document.body.appendChild(form);
+            
+            progressFill.style.width = '60%';
+            form.submit();
+            document.body.removeChild(form);
+        }
     </script>
 </body>
 </html>
