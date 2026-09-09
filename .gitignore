@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+uploads/
+results/
+demo_*.png
+build/
+dist/
+*.spec

@@ -36,6 +36,12 @@ def create_demo_image():
     cv2.ellipse(img, (350, 580), (70, 45), 0, 0, 360, (255, 255, 255), -1)
     cv2.ellipse(img, (350, 580), (70, 45), 0, 0, 360, (0, 0, 0), 3)
     
+    # Texto dentro de los globos (lo que se va a limpiar)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(img, "HOLA MUNDO", (118, 258), font, 0.7, (0, 0, 0), 2, cv2.LINE_AA)
+    cv2.putText(img, "QUE TAL?", (830, 240), font, 0.9, (0, 0, 0), 2, cv2.LINE_AA)
+    cv2.putText(img, "VAMOS A", (280, 580), font, 0.7, (0, 0, 0), 2, cv2.LINE_AA)
+    
     return img
 
 
@@ -82,10 +88,9 @@ def main():
     print("  DEMOSTRACIÓN COMPLETA")
     print("=" * 60)
     print("\nPara usar la aplicación:")
-    print("  1. Línea de comandos: python app.py demo_image.png -o cleaned.png")
-    print("  2. O abrir la web:     python web_app.py  (http://localhost:5000)")
-    print("\nEjemplo de uso con una imagen real:")
-    print("  python app.py path/to/manga_page.png --no-yolo")
+    print("  1. Escritorio:     python gui_app.py")
+    print("  2. Interfaz web:   python web_app.py  (http://localhost:5000)")
+    print("  3. Línea de comandos: python app.py path/to/manga_page.png --no-yolo")
 
 
 if __name__ == '__main__':

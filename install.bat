@@ -47,9 +47,9 @@ echo    Instalación completada
 echo ============================================
 echo.
 echo Para usar la aplicación:
-echo   - Interfaz web:  python web_app.py
-echo   - Línea de comandos:  python app.py [ruta_imagen]
+echo   - Escritorio (GUI):  python gui_app.py
+echo   - Interfaz web:      python web_app.py
+echo   - Línea de comandos: python app.py [ruta_imagen]
 echo.
-echo Luego abre: http://localhost:5000
-echo.
+echo Luego abre: http://localhost:5000  (solo para la opción web)
 pause
