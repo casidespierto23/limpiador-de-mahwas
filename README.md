@@ -71,6 +71,8 @@ La GUI ofrece:
 - **Ocultar/Mostrar imagen**: el botón "Ocultar imagen" oculta el visor principal
   para trabajar concentrado en los controles y el panel de texto; al volver a
   tocar "Mostrar imagen" reaparece con las mismas vistas
+- **Solo resultado**: el botón "Solo resultado" quita el panel ORIGINAL y deja la
+  página de trabajo (resultado) ocupando todo el ancho; "Mostrar original" lo repone
 
 ### Interfaz Web (recomendado para principiantes)
 

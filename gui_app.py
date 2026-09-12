@@ -548,6 +548,13 @@ class MangaCleanerApp:
         self._bind_tooltip(self.view_btn,
                            'Ocultá o mostrá el visor para trabajar sobre los controles sin distracciones')
 
+        self.orig_btn = ttk.Button(tb, text='Solo resultado', style='Soft.TButton',
+                                   image=teal['eye'], compound='left',
+                                   command=self._toggle_original)
+        self.orig_btn.pack(side='left', padx=(6, 0))
+        self._bind_tooltip(self.orig_btn,
+                           'Quitá el panel ORIGINAL y quedate solo con la página de trabajo (resultado)')
+
     def _build_controls(self, parent):
         # Riel con botón para plegar/mostrar el panel (más espacio al visor)
         rail = ttk.Frame(parent, width=30)
@@ -861,6 +868,7 @@ class MangaCleanerApp:
         self.viewer = images
         C = COLORS
         left = ttk.Frame(images)
+        self.original_pane = left
         self.original_canvas = ZoomableCanvas(left)
         self.original_canvas.pack(fill='both', expand=True, padx=2, pady=(2, 2))
         tk.Label(left, text='ORIGINAL', bg=C['navy'], fg='white',
@@ -907,6 +915,21 @@ class MangaCleanerApp:
         else:
             self.ocr_text.pack(fill='x')
             self.ocr_toggle.config(text='▲')
+
+    def _toggle_original(self):
+        if getattr(self, 'viewer', None) is None:
+            return
+        panes = list(self.viewer.panes())
+        if str(self.original_pane) in panes:
+            self.viewer.forget(self.original_pane)
+            self.orig_btn.config(text='Mostrar original')
+            self.set_status('Trabajando solo con el resultado. Tocá "Mostrar original" para volver.')
+            self._toast('Solo resultado: original oculto', 'ok')
+        else:
+            self.viewer.add(self.original_pane, weight=1)
+            self.orig_btn.config(text='Solo resultado')
+            self.set_status('Original visible otra vez.')
+            self._toast('Original visible', 'info')
 
     def _toggle_viewer(self):
         if getattr(self, 'viewer', None) is None:
