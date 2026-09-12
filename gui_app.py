@@ -1092,7 +1092,8 @@ class MangaCleanerApp:
     def _right_image(self):
         if self.var_view.get() == 'Detección' and self.detection_overlay is not None:
             return self.detection_overlay
-        return self.result
+        # Aunque aún no se procese, el panel de trabajo siempre muestra la página.
+        return self.result if self.result is not None else self.original
 
     def _right_image_for_display(self):
         if self.var_view.get() == 'Comparar' and self.original is not None:
