@@ -25,6 +25,9 @@ from ocr import BubbleTextExtractor, transcript as ocr_transcript
 
 ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tif', '.tiff'}
 
+OCR_HINT = ('Al procesar una página se mostrará aquí el texto '
+            'detectado en cada globo, antes de limpiarlo.')
+
 # Enlace de donación por defecto (se puede cambiar con un archivo "donacion.txt"
 # junto al .exe, sin necesidad de recompilar).
 DONATION_URL = ''
@@ -208,11 +211,16 @@ class MangaCleanerApp:
         self._thumbs = []
         self._thumb_items = {}
         self._thumb_hl = None
+        self._thumbs_gen = 0
+        self._closing = False
+        self._ocr_has_real = False
+        self._hint_owner = None
 
         self._build_ui()
         self._set_app_icon()
         self._update_nav_state()
         self.root.after(100, self._poll_queue)
+        self.root.protocol('WM_DELETE_WINDOW', self._on_close)
 
     def _set_app_icon(self):
         assets = _assets_dir()
@@ -276,7 +284,6 @@ class MangaCleanerApp:
             x0, y0, x1, y1 = b
             r = (x1 - x0) // 20
             cx, cy = x0 + 10*r, y0 + 10*r
-            s = 8*r
             d.polygon([(cx, cy + 9*r), (cx - 9*r, cy), (cx - 9*r, cy - 4*r),
                        (cx - 5*r, cy - 8*r), (cx, cy - 3*r), (cx + 5*r, cy - 8*r),
                        (cx + 9*r, cy - 4*r), (cx + 9*r, cy), (cx, cy + 9*r)], fill=f)
@@ -335,6 +342,8 @@ class MangaCleanerApp:
         try:
             cv = self.result_canvas.canvas
             sc = self.result_canvas
+            if sc._np_image is None or sc._item is None or not bubbles:
+                return
             colors = ('#ffd166', '#ef476f', '#06d6a0', '#118ab2', '#f78c6b', '#9b5de5')
             sparks = []
             for bx in (bubbles or [])[:8]:
@@ -374,15 +383,15 @@ class MangaCleanerApp:
 
     def _bind_tooltip(self, btn, text):
         def on_enter(event):
+            self._hint_owner = btn
             self._hint_backup = self.status.cget('text')
             self.status.config(text=text, fg=COLORS['teal'])
 
         def on_leave(event):
-            try:
+            if getattr(self, '_hint_owner', None) is btn:
                 self.status.config(text=getattr(self, '_hint_backup', ''),
                                    fg=COLORS['muted'])
-            except Exception:
-                pass
+                self._hint_owner = None
 
         btn.bind('<Enter>', on_enter)
         btn.bind('<Leave>', on_leave)
@@ -754,6 +763,8 @@ class MangaCleanerApp:
         self._thumbs_frame.pack_forget()  # solo visible cuando hay páginas
 
     def _load_thumbnails(self):
+        self._thumbs_gen += 1
+        gen = self._thumbs_gen
         self._thumb_canvas.delete('all')
         self._thumbs = []
         self._thumb_items = {}
@@ -770,13 +781,16 @@ class MangaCleanerApp:
                     with Image.open(p) as im:
                         im.thumbnail((52, 76))
                         rgb = im.convert('RGB').copy()
-                        self._post(lambda idx=i, img=rgb: self._add_thumb(idx, img, n))
+                        self._post(lambda idx=i, img=rgb, g=gen:
+                                   self._add_thumb(idx, img, n, g))
                 except Exception:
                     pass
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _add_thumb(self, idx, img, total):
+    def _add_thumb(self, idx, img, total, gen):
+        if gen != self._thumbs_gen:  # se abrió otra carpeta: descartar
+            return
         x = idx * 64
         photo = ImageTk.PhotoImage(img)
         self._thumbs.append((idx, photo))
@@ -904,8 +918,8 @@ class MangaCleanerApp:
         self.ocr_hint.pack(side='right', padx=(0, 6))
         self.ocr_text = ScrolledText(tf, height=4, wrap='word', font=('Segoe UI', 10))
         self.ocr_text.pack(fill='x')
-        self.ocr_text.insert('1.0', 'Al procesar una página se mostrará aquí el texto '
-                                   'detectado en cada globo, antes de limpiarlo.')
+        self.ocr_text.insert('1.0', OCR_HINT)
+        self._ocr_has_real = False
         self._update_ocr_hint()
 
     def _toggle_ocr_panel(self):
@@ -1019,6 +1033,9 @@ class MangaCleanerApp:
 
     # ------------------------------------------------------------- acciones
     def open_image(self):
+        if self._busy:
+            self.set_status('Esperá: se está procesando una página...')
+            return
         path = filedialog.askopenfilename(
             title='Abrir imagen',
             filetypes=[('Imágenes', '*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff'),
@@ -1032,11 +1049,19 @@ class MangaCleanerApp:
         self._toast('Página abierta', 'ok')
 
     def open_folder(self):
+        if self._busy:
+            self.set_status('Esperá: se está procesando una página...')
+            return
         folder = filedialog.askdirectory(title='Abrir carpeta de páginas')
         if not folder:
             return
         folder = Path(folder)
-        files = [p for p in sorted(folder.iterdir()) if p.suffix.lower() in ALLOWED_EXTENSIONS]
+        try:
+            files = [p for p in sorted(folder.iterdir())
+                     if p.suffix.lower() in ALLOWED_EXTENSIONS]
+        except OSError as e:
+            messagebox.showerror('Error', f'No se pudo leer la carpeta:\n{e}')
+            return
         if not files:
             messagebox.showwarning('Sin imágenes',
                                    f'No se encontraron imágenes en:\n{folder}')
@@ -1100,7 +1125,19 @@ class MangaCleanerApp:
             return self._compare_composite(self._compare_pos)
         return self._right_image()
 
+    def _reset_canvas_overlays(self):
+        """Al refrescarse el lienzo se borran todos los items: invalidar el
+        estado de hover/dibujo para no usar ids de canvas obsoletos."""
+        self._hover = None
+        self._brush_dots = []
+        self._brush_pts = []
+        self._sel_item = None
+        self._sel_text = None
+        self._sel_origin = None
+        self._drawing = False
+
     def _refresh_displays(self):
+        self._reset_canvas_overlays()
         if self.original is None:
             ph = self._placeholder_image()
             self.original_canvas.set_image(ph)
@@ -1115,11 +1152,17 @@ class MangaCleanerApp:
             self.result_canvas.set_image(right, scale=self._scale)
 
     def zoom_in(self):
+        if self.original is None:
+            self.set_status('Abrí una página primero.')
+            return
         self._fit = False
         self._scale = max(0.05, self._scale * 1.25)
         self._refresh_displays()
 
     def zoom_out(self):
+        if self.original is None:
+            self.set_status('Abrí una página primero.')
+            return
         self._fit = False
         self._scale = max(0.05, self._scale / 1.25)
         self._refresh_displays()
@@ -1129,6 +1172,9 @@ class MangaCleanerApp:
         self._refresh_displays()
 
     def zoom_100(self):
+        if self.original is None:
+            self.set_status('Abrí una página primero.')
+            return
         self._fit = False
         self._scale = 1.0
         self._refresh_displays()
@@ -1141,6 +1187,16 @@ class MangaCleanerApp:
         """Encola una tarea para ejecutarla en el hilo principal (thread-safe)."""
         self._gui_queue.put(callback)
 
+    def _on_close(self):
+        """Cierre limpio: cancela temporizadores para no lanzar errores de Tk."""
+        self._closing = True
+        if getattr(self, '_toast_after', None):
+            try:
+                self.root.after_cancel(self._toast_after)
+            except Exception:
+                pass
+        self.root.destroy()
+
     def _poll_queue(self):
         try:
             while True:
@@ -1148,7 +1204,12 @@ class MangaCleanerApp:
                 callback()
         except queue.Empty:
             pass
-        self.root.after(100, self._poll_queue)
+        if getattr(self, '_closing', False):
+            return
+        try:
+            self.root.after(100, self._poll_queue)
+        except tk.TclError:
+            pass
 
     def _params(self):
         return {
@@ -1176,15 +1237,20 @@ class MangaCleanerApp:
         self.ocr_text.delete('1.0', 'end')
         if msg:
             self.ocr_text.insert('1.0', msg + '\n')
+            self._ocr_has_real = False
             return
-        if not results:
-            self.ocr_text.insert('1.0', 'No se detectó texto en los globos.')
-            return
-        self.ocr_text.insert('1.0', ocr_transcript(results))
+        if results:
+            text = ocr_transcript(results)
+            if text:
+                self.ocr_text.insert('1.0', text)
+                self._ocr_has_real = True
+                return
+        self.ocr_text.insert('1.0', OCR_HINT)
+        self._ocr_has_real = False
 
     def copy_ocr_text(self):
         text = self.ocr_text.get('1.0', 'end-1c').strip()
-        if not text:
+        if not self._ocr_has_real or not text:
             self.set_status('No hay texto extraído para copiar.')
             return
         self.root.clipboard_clear()
@@ -1194,7 +1260,7 @@ class MangaCleanerApp:
 
     def save_ocr_text(self):
         text = self.ocr_text.get('1.0', 'end-1c').strip()
-        if not text:
+        if not self._ocr_has_real or not text:
             messagebox.showinfo('Aviso', 'No hay texto extraído para guardar.')
             return
         default = self.current_path.stem + '_texto.txt' if self.current_path else 'texto_extraido.txt'
@@ -1301,15 +1367,18 @@ class MangaCleanerApp:
 
     def _set_busy(self, busy):
         self._busy = busy
-        self.process_btn.config(state='disabled' if busy else 'normal')
-        if busy:
-            self.root.config(cursor='watch')
-            self._progress.pack(side='right', padx=(8, 10), pady=4)
-            self._progress.start(12)
-        else:
-            self.root.config(cursor='')
-            self._progress.stop()
-            self._progress.pack_forget()
+        try:
+            self.process_btn.config(state='disabled' if busy else 'normal')
+            if busy:
+                self.root.config(cursor='watch')
+                self._progress.pack(side='right', padx=(8, 10), pady=4)
+                self._progress.start(12)
+            else:
+                self.root.config(cursor='')
+                self._progress.stop()
+                self._progress.pack_forget()
+        except tk.TclError:
+            pass  # ventana cerrada mientras se procesaba
 
     # -------------------------------------------------- edición manual
     def _set_tool(self, value):
@@ -1380,7 +1449,10 @@ class MangaCleanerApp:
 
     def _hide_hover(self):
         if self._hover is not None:
-            self.result_canvas.canvas.delete(self._hover)
+            try:
+                self.result_canvas.canvas.delete(self._hover)
+            except tk.TclError:
+                pass
             self._hover = None
 
     def _on_canvas_press(self, event):
@@ -1551,16 +1623,26 @@ class MangaCleanerApp:
         self.set_status('Ediciones manuales descartadas. Se restauró el resultado automático.')
 
     def _cancel_drawing(self):
-        if getattr(self, '_brush_dots', None):
-            for it in self._brush_dots:
-                self.result_canvas.canvas.delete(it)
-            self._brush_dots = []
-        if getattr(self, '_sel_item', None):
-            self.result_canvas.canvas.delete(self._sel_item)
-            self._sel_item = None
-        if getattr(self, '_sel_text', None):
-            self.result_canvas.canvas.delete(self._sel_text)
-            self._sel_text = None
+        cv = self.result_canvas.canvas if getattr(self, 'result_canvas', None) else None
+        try:
+            if getattr(self, '_brush_dots', None):
+                for it in self._brush_dots:
+                    cv.delete(it)
+        except tk.TclError:
+            pass
+        try:
+            if getattr(self, '_sel_item', None):
+                cv.delete(self._sel_item)
+        except tk.TclError:
+            pass
+        try:
+            if getattr(self, '_sel_text', None):
+                cv.delete(self._sel_text)
+        except tk.TclError:
+            pass
+        self._brush_dots = []
+        self._sel_item = None
+        self._sel_text = None
         self._hide_hover()
         self._sel_origin = None
         self._brush_pts = []
@@ -1592,7 +1674,12 @@ class MangaCleanerApp:
             filetypes=[('PNG', '*.png'), ('JPEG', '*.jpg'), ('WEBP', '*.webp')])
         if not path:
             return
-        cv2.imwrite(path, self.result)
+        ok = cv2.imwrite(path, self.result)
+        if not ok:
+            self.set_status(f'Error al guardar: no se pudo escribir {path}')
+            messagebox.showerror('Error', 'No se pudo guardar la imagen. '
+                                          'Comprobá la carpeta y el nombre.')
+            return
         self.set_status(f'Guardada: {path}')
         self._toast('Imagen guardada', 'ok')
 
