@@ -1233,20 +1233,32 @@ class MangaCleanerApp:
             hint += f'  · Modelo {lang} no encontrado en models/ (se usará el estándar)'
         self.ocr_hint.config(text=hint)
 
+    @staticmethod
+    def _ocr_summary(results):
+        n_globos = len(results)
+        n_texto = sum(1 for r in results if r.get('text'))
+        confs = [r['conf'] for r in results if r.get('conf') is not None]
+        media = sum(confs) / len(confs) if confs else 0.0
+        total_lines = sum(len(r.get('lines', [])) for r in results)
+        return (f'OCR: {n_globos} globos · {n_texto} con texto · '
+                f'{total_lines} líneas · conf. media {media:.1%}')
+
     def _show_ocr_results(self, results, msg=None):
         self.ocr_text.delete('1.0', 'end')
+        self._ocr_has_real = False
         if msg:
             self.ocr_text.insert('1.0', msg + '\n')
-            self._ocr_has_real = False
+            self._update_ocr_hint()
             return
         if results:
             text = ocr_transcript(results)
             if text:
                 self.ocr_text.insert('1.0', text)
                 self._ocr_has_real = True
+                self.ocr_hint.config(text=self._ocr_summary(results))
                 return
         self.ocr_text.insert('1.0', OCR_HINT)
-        self._ocr_has_real = False
+        self._update_ocr_hint()
 
     def copy_ocr_text(self):
         text = self.ocr_text.get('1.0', 'end-1c').strip()
@@ -1353,8 +1365,14 @@ class MangaCleanerApp:
         self._refresh_displays()
         self._update_undo_state()
         self._show_ocr_results(ocr_out, ocr_msg)
-        n_text = sum(1 for r in (ocr_out or []) if r.get('text'))
-        extra = f' | {n_text} globos con texto extraído' if n_text else ''
+        extra = ''
+        if ocr_out is not None:
+            n_text = sum(1 for r in ocr_out if r.get('text'))
+            extra = f' | OCR: {n_text} globos con texto'
+            if n_text:
+                confs = [r['conf'] for r in ocr_out if r.get('conf') is not None]
+                if confs:
+                    extra += f' (conf. media {sum(confs)/len(confs):.0%})'
         self.set_status(f'Listo: {len(bubbles)} globos detectados y limpiados.{extra}')
         if bubbles:
             self._celebrate(bubbles)
